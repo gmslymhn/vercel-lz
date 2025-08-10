@@ -1,5 +1,9 @@
 const https = require('https');
 const { URL } = require('url');
+const { get, set } = require('@vercel/edge-config');
+
+// 缓存有效期（秒）：10分钟
+const CACHE_EXPIRY = 10 * 60;
 
 module.exports = async (req, res) => {
     try {
@@ -9,50 +13,56 @@ module.exports = async (req, res) => {
             return res.status(400).send('缺少必要参数: fid');
         }
 
-        // 第一步：获取文件页面HTML
+        // 尝试从 Edge Config 读取缓存
+        const cacheKey = `lz_${fid}`;
+        const cached = await get(cacheKey);
+
+        if (cached?.url && Date.now() - cached.timestamp < CACHE_EXPIRY * 1000) {
+            console.log(`[缓存命中] fid=${fid}, url=${cached.url}`);
+            return res.redirect(302, cached.url);
+        }
+
+        // 无缓存或过期，开始解析
+        console.log(`[缓存未命中] 开始解析 fid=${fid}`);
         const htmlText = await fetchUrl(`https://innlab.lanzn.com/${fid}`, {
-            headers: {
-                'Referer': isNewd,
-            }
+            headers: { 'Referer': isNewd }
         });
 
-        // 提取文件URL和sign值
+        // 提取关键数据
         const fileurl = extractValue(htmlText, /url\s*:\s*['"]([^'"]+?)['"],/);
         const signs = extractAllMatches(htmlText, /'sign':'([^']+)'/g);
-
-        console.log("fileurl",fileurl)
-        console.log("signs",signs)
         if (!fileurl || signs.length < 2) {
             throw new Error('解析HTML失败：缺少关键数据');
         }
 
-        // 第二步：提交验证信息
-        const postData = new URLSearchParams({
-            action: "downprocess",
-            sign: signs[1],
-            p: pwd || '',
-            kd: 1
-        }).toString();
-
+        // 提交验证
         const postResponse = await fetchUrl(`https://innlab.lanzn.com${fileurl}`, {
             method: 'POST',
             headers: {
                 'Referer': `https://innlab.lanzn.com/${fid}`,
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: postData
+            body: new URLSearchParams({
+                action: "downprocess",
+                sign: signs[1],
+                p: pwd || '',
+                kd: 1
+            }).toString()
         });
 
         const result = JSON.parse(postResponse);
-        console.log(result)
-        if (result.zt !== 1) {
-            throw new Error(result.inf || '文件解析失败');
-        }
-// 获取最终下载URL
-        const intermediateUrl = `${result.dom}/file/${result.url}`;
-        const finalUrl = await getFinalRedirectUrl(intermediateUrl);
-        console.log("finalUrl",finalUrl)
-        // 302重定向到最终下载链接
+        if (result.zt !== 1) throw new Error(result.inf || '文件解析失败');
+
+        // 获取最终URL
+        const finalUrl = await getFinalRedirectUrl(`${result.dom}/file/${result.url}`);
+        console.log(`[解析完成] fid=${fid}, url=${finalUrl}`);
+
+        // 写入 Edge Config 缓存
+        await set(cacheKey, {
+            url: finalUrl,
+            timestamp: Date.now()
+        });
+
         res.redirect(302, finalUrl);
     } catch (error) {
         console.error('解析失败:', error);
