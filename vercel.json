@@ -21,8 +21,8 @@
         "X-Forwarded-Proto": "$scheme"
       }
     },{
-      "src": "/api/test",
-      "dest": "/api/test.js"
+      "src": "/api/lz",
+      "dest": "/api/lz.js"
     },
     {
       "src": "/(.*)",
