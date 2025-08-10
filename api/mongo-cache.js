@@ -4,13 +4,13 @@ const CONNECTION_STRING = "mongodb+srv://gmslymhn:dNMKZeFiAXn3P856@gm.oxqdnlc.mo
 class MongoCache {
     constructor() {
         this.client = new MongoClient(CONNECTION_STRING, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
             serverApi: {
                 version: '1',
                 strict: true,
                 deprecationErrors: true,
-            }
+            },
+            maxPoolSize: 10,  // 推荐显式设置连接池
+            minPoolSize: 2
         });
         this.dbName = 'lz';
         this.collectionName = 'url_cache';
