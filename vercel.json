@@ -2,14 +2,15 @@
   "version": 2,
   "builds": [
     {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "**/*.html",
       "use": "@vercel/static"
     }
   ],
   "routes": [
-    {
-      "handle": "filesystem"
-    },
     {
       "src": "/getfile/(.*)",
       "dest": "https://innlab.lanzn.com/$1",
@@ -19,9 +20,14 @@
         "X-Forwarded-For": "$proxy_add_x_forwarded_for",
         "X-Forwarded-Proto": "$scheme"
       }
+    },{
+      "src": "/api/test",
+      "dest": "/api/test.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
     }
   ]
 }
-
-
 
