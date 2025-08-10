@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "**/*.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/getfile/(.*)",
+      "dest": "https://innlab.lanzn.com/$1",
+      "headers": {
+        "Host": "innlab.lanzn.com",
+        "X-Real-IP": "$remote_addr",
+        "X-Forwarded-For": "$proxy_add_x_forwarded_for",
+        "X-Forwarded-Proto": "$scheme"
+      }
+    }
+  ]
+}
+
+
+

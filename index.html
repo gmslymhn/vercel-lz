@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>蓝奏云直链解析</title>
+    <style>
+        body { display: none; }
+    </style>
+</head>
+<body>
+<script>
+
+    // 解析URL参数
+    function getQueryParams() {
+        const params = new URLSearchParams(window.location.search);
+        return {
+            fid: params.get('fid'),
+            pwd: params.get('pwd'),
+            isNewd: params.get('isNewd') || 'https://wwi.lanzoui.com'
+        };
+    }
+
+    // 主解析函数
+    async function parseLanzouLink(data) {
+        console.log('解析参数:', data);
+        if (data.url && data.url !== '') return data.url;
+
+        const { pwd, isNewd, fid } = data;
+        if (!fid) throw new Error('缺少必要参数: fid');
+
+        // 通过代理服务器进行GET请求
+        const getUrl = `/getfile/${fid}`;
+        const getResponse = await fetch(getUrl);
+        if (!getResponse.ok) throw new Error(`获取文件信息失败: ${getResponse.status}`);
+
+        const htmlText = await getResponse.text();
+        const urlMatch = /url\s*:\s*['"]([^'"]+?)['"],/.exec(htmlText);
+        if (!urlMatch) throw new Error('无法提取文件URL');
+        const fileurl = urlMatch[1];
+
+        // 提取sign值
+        const signRegex = /'sign':'([^']+)'/g;
+        let signs = [];
+        let match;
+        while ((match = signRegex.exec(htmlText)) !== null) signs.push(match[1]);
+        if (signs.length < 2) throw new Error('无法提取有效的sign值');
+
+        // 通过代理服务器进行POST请求
+        const postResponse = await fetch(`/getfile${fileurl}`, {
+            method: 'POST',
+            headers: {
+                'Referer': window.location.origin + getUrl,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                action: "downprocess",
+                sign: signs[1],
+                p: pwd || '',
+                kd: 1
+            })
+        });
+
+        if (!postResponse.ok) throw new Error(`提交验证信息失败: ${postResponse.status}`);
+        const postDataJson = await postResponse.json();
+        
+        if (postDataJson.zt == '1') {
+            return `${postDataJson.dom}/file/${postDataJson.url}`;
+        } else {
+            throw new Error(postDataJson.inf || '文件解析失败');
+        }
+    }
+
+    // 页面加载完成后执行
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const params = getQueryParams();
+            const downloadUrl = await parseLanzouLink(params);
+            console.log('解析成功，正在跳转:', downloadUrl);
+            window.location.href = downloadUrl;
+        } catch (error) {
+            console.error('解析失败:', error);
+            // 如果解析失败，显示一个极简的错误信息
+            document.body.innerHTML = `<div style="text-align:center;margin-top:50px;color:red">解析失败: ${error.message}</div>`;
+            document.body.style.display = 'block';
+        }
+    });
+</script>
+</body>
+</html>
