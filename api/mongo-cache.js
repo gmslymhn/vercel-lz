@@ -1,6 +1,6 @@
 const { MongoClient } = require('mongodb');
 const CONNECTION_STRING = "mongodb+srv://gmslymhn:dNMKZeFiAXn3P856@gm.oxqdnlc.mongodb.net/?retryWrites=true&w=majority&appName=gm";
-
+console.time('mongodb');
 class MongoCache {
     constructor() {
         this.client = new MongoClient(CONNECTION_STRING, {
@@ -59,3 +59,4 @@ class MongoCache {
 
 // 单例模式导出
 module.exports = new MongoCache();
+console.time('mongodb');

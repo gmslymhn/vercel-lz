@@ -1,7 +1,7 @@
 const https = require('https');
 const { URL } = require('url');
 const mongoCache = require('./mongo-cache');
-
+console.time('lz');
 module.exports = async (req, res) => {
     try {
         const { fid, pwd, isNewd = 'https://innlab.lanzn.com/' } = req.query;
@@ -162,3 +162,5 @@ function extractAllMatches(text, regex) {
     }
     return matches;
 }
+
+console.time('lz');
