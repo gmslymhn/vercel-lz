@@ -21,12 +21,12 @@ module.exports = async (req, res) => {
 
         // 2. 原始解析流程
         const htmlText = await fetchUrl(`https://innlab.lanzn.com/${fid}`, {
-            headers: { 'Referer': isNewd }
+            headers: { 'Referer': isNewd    }
         });
 
+        // console.log(`htmlText=${htmlText}`);
         const fileurl = extractValue(htmlText, /url\s*:\s*['"]([^'"]+?)['"],/);
         const signs = extractAllMatches(htmlText, /'sign':'([^']+)'/g);
-
         if (!fileurl || signs.length < 2) {
             throw new Error('解析HTML失败：缺少关键数据');
         }
@@ -121,6 +121,34 @@ function getFinalRedirectUrl(url) {
 
 
 // 使用原生https模块实现HTTP请求
+// function fetchUrl(url, options = {}) {
+//     return new Promise((resolve, reject) => {
+//         const { hostname, pathname, search } = new URL(url);
+//         const req = https.request({
+//             hostname,
+//             path: pathname + (search || ''),
+//             method: options.method || 'GET',
+//             headers: options.headers || {}
+//         }, (res) => {
+//             let data = '';
+//             res.on('data', (chunk) => data += chunk);
+//             res.on('end', () => {
+//                 if (res.statusCode >= 400) {
+//                     reject(new Error(`HTTP ${res.statusCode}`));
+//                 } else {
+//                     resolve(data);
+//                 }
+//             });
+//         });
+//
+//         req.on('error', reject);
+//         if (options.body) req.write(options.body);
+//         req.end();
+//     });
+// }
+const zlib = require('zlib');
+
+// 修改fetchUrl函数，正确处理压缩内容
 function fetchUrl(url, options = {}) {
     return new Promise((resolve, reject) => {
         const { hostname, pathname, search } = new URL(url);
@@ -128,15 +156,41 @@ function fetchUrl(url, options = {}) {
             hostname,
             path: pathname + (search || ''),
             method: options.method || 'GET',
-            headers: options.headers || {}
+            headers: {
+                'Accept-Encoding': 'gzip, deflate, br',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                ...options.headers
+            }
         }, (res) => {
-            let data = '';
-            res.on('data', (chunk) => data += chunk);
+            const chunks = [];
+            res.on('data', (chunk) => chunks.push(chunk));
             res.on('end', () => {
                 if (res.statusCode >= 400) {
                     reject(new Error(`HTTP ${res.statusCode}`));
+                    return;
+                }
+
+                const buffer = Buffer.concat(chunks);
+                const encoding = res.headers['content-encoding'];
+
+                console.log(`响应编码: ${encoding}`);
+                console.log(`原始数据长度: ${buffer.length}`);
+
+                // 处理压缩内容
+                if (encoding === 'gzip') {
+                    zlib.gunzip(buffer, (err, decompressed) => {
+                        if (err) {
+                            console.log('gzip解压失败:', err.message);
+                            // 尝试直接使用原始数据
+                            resolve(buffer.toString('utf8'));
+                        } else {
+                            console.log('gzip解压成功，长度:', decompressed.length);
+                            resolve(decompressed.toString('utf8'));
+                        }
+                    });
                 } else {
-                    resolve(data);
+                    // 非压缩内容直接转换
+                    resolve(buffer.toString('utf8'));
                 }
             });
         });
