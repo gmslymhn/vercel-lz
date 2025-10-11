@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
             headers: { 'Referer': isNewd    }
         });
 
-        // console.log(`htmlText=${htmlText}`);
+        console.log(`htmlText=${htmlText}`);
         const fileurl = extractValue(htmlText, /url\s*:\s*['"]([^'"]+?)['"],/);
         const signs = extractAllMatches(htmlText, /'sign':'([^']+)'/g);
         if (!fileurl || signs.length < 2) {
