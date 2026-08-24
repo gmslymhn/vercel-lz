@@ -65,7 +65,7 @@
                 }
             }
 
-            return 'acw_sc__v2=' + arg3 + ';expires=' + expiredate.toGMTString() + ';max-age=3600;path=/;domain=' + theHost;
+            return 'acw_sc__v2=' + arg3 + ';expires=' + expiredate.toGMTString() + ';max-age=3600;path=/';
 
         } catch (error) {
             console.error('执行挑战失败:', error);
@@ -75,13 +75,48 @@
 
     // 处理挑战页面的函数
     async function handleChallenge(htmlText) {
-        // 提取arg1值
-        const arg1Match = /var arg1 = '([^']+)'/.exec(htmlText);
-        if (!arg1Match) {
+        console.log('原始HTML长度:', htmlText.length);
+        console.log('HTML前500字符:', htmlText.substring(0, 500));
+
+        // 多种方式尝试提取arg1值
+        let arg1 = null;
+
+        // 方式1: 原始正则（可能格式有变化）
+        const arg1Match1 = /var arg1\s*=\s*'([^']+)'/.exec(htmlText);
+        if (arg1Match1) {
+            arg1 = arg1Match1[1];
+            console.log('方式1匹配成功:', arg1);
+        }
+
+        // 方式2: 更宽松的正则
+        if (!arg1) {
+            const arg1Match2 = /arg1\s*=\s*['"]([A-F0-9]+)['"]/.exec(htmlText);
+            if (arg1Match2) {
+                arg1 = arg1Match2[1];
+                console.log('方式2匹配成功:', arg1);
+            }
+        }
+
+        // 方式3: 搜索包含arg1的行
+        if (!arg1) {
+            const lines = htmlText.split('\n');
+            for (let line of lines) {
+                if (line.includes('arg1') && line.includes('=')) {
+                    const match = line.match(/['"]([A-F0-9]{40})['"]/);
+                    if (match) {
+                        arg1 = match[1];
+                        console.log('方式3匹配成功:', arg1);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!arg1) {
+            console.error('所有匹配方式都失败了，HTML内容:', htmlText);
             throw new Error('无法提取挑战参数');
         }
 
-        const arg1 = arg1Match[1];
         console.log('检测到反爬挑战，arg1:', arg1);
 
         // 执行挑战获取cookie
@@ -92,14 +127,16 @@
 
         console.log('生成的cookie:', challengeCookie);
 
-        // 设置cookie
-        document.cookie = challengeCookie;
+        // 设置cookie（简化domain设置）
+        const simplifiedCookie = challengeCookie.replace(/;domain=[^;]+/, '');
+        document.cookie = simplifiedCookie;
 
         // 等待一小段时间让cookie生效
         await new Promise(resolve => setTimeout(resolve, 100));
 
         return true;
     }
+
 
     // 主解析函数
     async function parseLanzouLink(data) {
